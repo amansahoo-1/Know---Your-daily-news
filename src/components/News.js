@@ -13,17 +13,25 @@ export class News extends Component {
   }
 
   // Function to truncate text with ellipses
-  truncateText = (text, maxLength) => {
-    return text && text.length > maxLength
-      ? text.slice(0, maxLength) + "..."
-      : text;
+  truncateText = (text = "", maxLength) => {
+    return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
   };
 
   // Fetch data after the component mounts
   fetchData = async (page = 1) => {
     document.title = "Know - Top Headlines"; // Set dynamic page title
-    const apiKey = "aef6e27394ee48e097230ba35ae36b99"; // Store API key securely in the future
-    const url = `https://newsapi.org/v2/everything?q=tesla&from=2024-12-15&sortBy=publishedAt&page=${page}&apiKey=${apiKey}`;
+    const apiKey = process.env.REACT_APP_NEWS_API_KEY;
+    const query = this.props.query || "general"; // Default query if not passed
+
+    if (!apiKey) {
+      this.setState({
+        error: "API Key is missing. Please configure it in the .env file.",
+        loading: false,
+      });
+      return;
+    }
+
+    const url = `https://newsapi.org/v2/everything?q=${query}&from=2024-12-15&sortBy=publishedAt&page=${page}&apiKey=${apiKey}`;
 
     try {
       const response = await fetch(url);
@@ -41,6 +49,8 @@ export class News extends Component {
   handlePageChange = (direction) => {
     const { page } = this.state;
     const nextPage = direction === "next" ? page + 1 : page - 1;
+
+    if (nextPage < 1) return; // Prevent negative pages
     this.setState({ page: nextPage, loading: true }, () => {
       this.fetchData(nextPage);
     });
@@ -59,8 +69,8 @@ export class News extends Component {
 
         {/* Display loading spinner */}
         {loading && (
-          <div className="text-center">
-            <div className="spinner-border" role="status">
+          <div className="text-center my-5">
+            <div className="spinner-border text-primary" role="status">
               <span className="visually-hidden">Loading...</span>
             </div>
           </div>
@@ -69,7 +79,7 @@ export class News extends Component {
         {/* Display error message */}
         {error && (
           <div className="alert alert-danger text-center" role="alert">
-            {`Something went wrong: ${error}`}
+            {`Error: ${error}. Please check your API key or internet connection.`}
           </div>
         )}
 
@@ -88,7 +98,8 @@ export class News extends Component {
                     "No description available."
                   }
                   imageUrl={
-                    article.urlToImage || "https://via.placeholder.com/150"
+                    article.urlToImage ||
+                    "https://via.placeholder.com/150?text=No+Image+Available"
                   }
                   newsUrl={article.url}
                 />
@@ -97,7 +108,7 @@ export class News extends Component {
         </div>
 
         {/* Pagination Controls */}
-        <div className="container d-flex justify-content-between">
+        <div className="container d-flex justify-content-between mt-4">
           <button
             type="button"
             className="btn btn-info"
