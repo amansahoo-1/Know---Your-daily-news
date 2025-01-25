@@ -1,198 +1,132 @@
 import React, { Component } from "react";
-import NewsItem from "./NewsItem";
+import PropTypes from "prop-types";
+import { useParams } from "react-router-dom";
 
-export class News extends Component {
-  constructor() {
-    super();
-    this.state = {
-      articles: [], // Fetched news articles
-      totalResults: 0, // Total number of articles available
-      loading: true, // Indicates if data is being fetched
-      error: null, // Stores error messages
-      page: 1, // Current page number
-      country: "us", // Default country
-      category: "general", // Default category
-    };
+class News extends Component {
+  static defaultProps = {
+    country: "us",
+    pageSize: 10,
+  };
+
+  static propTypes = {
+    country: PropTypes.string,
+    category: PropTypes.string,
+    pageSize: PropTypes.number,
+  };
+
+  state = {
+    articles: [],
+    loading: true,
+    page: 1,
+    totalResults: 0,
+    error: null,
+  };
+
+  componentDidMount() {
+    this.fetchData();
   }
 
-  // Utility function to truncate text if it exceeds a specified length
-  truncateText = (text = "", maxLength = 70) =>
-    text?.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-
-  // Fetch news articles from the API
-  fetchData = async (page = 1) => {
-    document.title = `Know - ${this.state.category} Headlines (Page ${page})`;
-    const apiKey = process.env.REACT_APP_NEWS_API_KEY;
-    const { country, category } = this.state;
-
-    if (!apiKey) {
-      this.setState({
-        error: "API Key is missing. Please configure it in the .env file.",
-        loading: false,
-      });
-      return;
+  componentDidUpdate(prevProps) {
+    const { category, country } = this.props;
+    if (prevProps.category !== category || prevProps.country !== country) {
+      this.setState({ page: 1 }, this.fetchData);
     }
+  }
 
-    const url = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&page=${page}&apiKey=${apiKey}&pageSize=21`;
-
+  fetchData = async () => {
     try {
+      this.setState({ loading: true, error: null });
+      const { country, category, pageSize } = this.props;
+      const { page } = this.state;
+      const apiKey = process.env.REACT_APP_NEWS_API_KEY;
+
+      if (!apiKey) throw new Error("API key is missing.");
+
+      const url = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&pageSize=${pageSize}&page=${page}&apiKey=${apiKey}`;
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch data. HTTP Status: ${response.status}`
-        );
-      }
+
+      if (!response.ok) throw new Error("Failed to fetch news articles.");
 
       const data = await response.json();
       this.setState({
-        articles: data.articles,
-        totalResults: data.totalResults,
+        articles: data.articles || [],
+        totalResults: data.totalResults || 0,
         loading: false,
-        error: null, // Clear previous errors if any
       });
     } catch (error) {
       this.setState({ error: error.message, loading: false });
     }
   };
 
-  // Handle page navigation
   handlePageChange = (direction) => {
-    const { page, totalResults } = this.state;
-    const totalPages = Math.ceil(totalResults / 21);
-    const nextPage = direction === "next" ? page + 1 : page - 1;
+    const { page } = this.state;
+    const nextPage = page + direction;
+    const totalPages = Math.ceil(this.state.totalResults / this.props.pageSize);
 
-    if (nextPage < 1 || nextPage > totalPages) {
-      alert("You are already on the first or last page.");
-      return;
-    }
+    if (nextPage < 1 || nextPage > totalPages) return;
 
-    this.setState({ page: nextPage, loading: true }, () => {
-      this.fetchData(nextPage);
-    });
+    this.setState({ page: nextPage }, this.fetchData);
   };
-
-  // Handle user input for country
-  handleCountryChange = (event) => {
-    this.setState({ country: event.target.value }, () => {
-      this.fetchData(1); // Fetch data when country is updated
-    });
-  };
-
-  // Handle user input for category
-  handleCategoryChange = (event) => {
-    this.setState({ category: event.target.value }, () => {
-      this.fetchData(1); // Fetch data when category is updated
-    });
-  };
-
-  // Fetch initial articles when the component mounts
-  componentDidMount() {
-    this.fetchData(this.state.page);
-  }
 
   render() {
-    const { articles, loading, error, page, totalResults, country, category } =
-      this.state;
-    const totalPages = Math.ceil(totalResults / 21);
+    const { articles, loading, error, page } = this.state;
+    const totalPages = Math.ceil(this.state.totalResults / this.props.pageSize);
 
     return (
-      <div className="container my-3">
-        <h2 className="text-center">Know - Top Headlines</h2>
+      <div className="container my-4">
+        <h1 className="text-center mb-4">
+          Top Headlines - {this.props.category}
+        </h1>
 
-        {/* Country and category filters */}
-        <div className="mb-3">
-          <label htmlFor="countrySelect" className="form-label">
-            Select Country:
-          </label>
-          <select
-            id="countrySelect"
-            className="form-select"
-            value={country}
-            onChange={this.handleCountryChange}
-          >
-            <option value="us">United States</option>
-            <option value="ca">Canada</option>
-            <option value="gb">United Kingdom</option>
-            <option value="in">India</option>
-            {/* Add more country options as needed */}
-          </select>
-        </div>
+        {loading && <div className="text-center">Loading...</div>}
+        {error && <div className="alert alert-danger">{error}</div>}
 
-        <div className="mb-3">
-          <label htmlFor="categorySelect" className="form-label">
-            Select Category:
-          </label>
-          <select
-            id="categorySelect"
-            className="form-select"
-            value={category}
-            onChange={this.handleCategoryChange}
-          >
-            <option value="general">General</option>
-            <option value="business">Business</option>
-            <option value="entertainment">Entertainment</option>
-            <option value="health">Health</option>
-            <option value="science">Science</option>
-            <option value="sports">Sports</option>
-            <option value="technology">Technology</option>
-          </select>
-        </div>
-
-        {/* Loading spinner */}
-        {loading && (
-          <div className="text-center my-5">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
-        )}
-
-        {/* Error message */}
-        {error && (
-          <div className="alert alert-danger text-center" role="alert">
-            {`Error: ${error}`}
-          </div>
-        )}
-
-        {/* News articles */}
         <div className="row">
           {!loading &&
             !error &&
             articles.map((article, index) => (
-              <div className="col-md-4" key={index}>
-                <NewsItem
-                  title={
-                    this.truncateText(article.title, 70) || "Untitled News"
-                  }
-                  description={
-                    this.truncateText(article.description, 88) ||
-                    "No description available."
-                  }
-                  imageUrl={
-                    article.urlToImage ||
-                    "https://via.placeholder.com/150?text=No+Image+Available"
-                  }
-                  newsUrl={article.url}
-                />
+              <div className="col-md-4 mb-3" key={index}>
+                <div className="card">
+                  <img
+                    src={
+                      article.urlToImage || "https://via.placeholder.com/150"
+                    }
+                    className="card-img-top"
+                    alt={article.title}
+                  />
+                  <div className="card-body">
+                    <h5 className="card-title">{article.title}</h5>
+                    <p className="card-text">
+                      {article.description || "No description available."}
+                    </p>
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm"
+                    >
+                      Read More
+                    </a>
+                  </div>
+                </div>
               </div>
             ))}
         </div>
 
-        {/* Pagination buttons */}
-        <div className="container d-flex justify-content-between mt-4">
+        <div className="d-flex justify-content-between mt-4">
           <button
-            className="btn btn-info"
-            onClick={() => this.handlePageChange("prev")}
+            className="btn btn-secondary"
+            onClick={() => this.handlePageChange(-1)}
             disabled={page === 1}
           >
-            &larr; Previous
+            &laquo; Previous
           </button>
           <button
-            className="btn btn-info"
-            onClick={() => this.handlePageChange("next")}
-            disabled={page >= totalPages}
+            className="btn btn-secondary"
+            onClick={() => this.handlePageChange(1)}
+            disabled={page === totalPages}
           >
-            Next &rarr;
+            Next &raquo;
           </button>
         </div>
       </div>
@@ -200,4 +134,10 @@ export class News extends Component {
   }
 }
 
-export default News;
+// for categories to be chaged while surfing
+const NewsWrapper = () => {
+  const { category } = useParams();
+  return <News category={category || "general"} />;
+};
+
+export default NewsWrapper;
